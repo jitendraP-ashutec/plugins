@@ -96,7 +96,7 @@ export class ConverterAndroid extends ConverterCommon {
 			return JSON.parse(fs.readFileSync(ruleFile).toString());
 		}
 		else {
-			this.logger.fatal("1111 Environment Rules File does not exist, Skipping....");
+			this.logger.fatal("Environment Rules File does not exist, Skipping....");
 			return;
 		}
 	}
@@ -124,7 +124,7 @@ export class ConverterAndroid extends ConverterCommon {
 		const resourceFilePath = path.join(languageResourcesDir, 'strings.xml');
 
 		if (multiEnvironmentName.length > 0) {
-				multiEnvironmentName.map(multEnvironmentName => {
+			multiEnvironmentName.map(multEnvironmentName => {
 				languageResourcesDir = languageResourcesDir.replace("/\.default." + multEnvironmentName + "/g", '');
 				languageResourcesDir = languageResourcesDir.replace("/\." + multEnvironmentName + "/g", '');
 			})
@@ -177,6 +177,19 @@ export class ConverterIOS extends ConverterCommon {
 		return this;
 	}
 
+	readRules() {
+		const fileName = "environment-rules." + 'android' + ".json";
+		const ruleFile = path.join(this.projectData.projectDir, fileName);
+		if (fs.existsSync(ruleFile)) {
+			this.logger.debug("Environment Rules found, reading contents");
+			return JSON.parse(fs.readFileSync(ruleFile).toString());
+		}
+		else {
+			this.logger.fatal("Environment Rules File does not exist, Skipping....");
+			return;
+		}
+	}
+
 	protected createLanguageResourcesFiles(language: string, isDefaultLanguage: boolean, i18nEntries: I18nEntries): this {
 		const infoPlistStrings: I18nEntries = new Map();
 		i18nEntries.forEach((value, key) => {
@@ -187,7 +200,18 @@ export class ConverterIOS extends ConverterCommon {
 			}
 		});
 		const languageResourcesDir = path.join(this.appResourcesDirectoryPath, `${language}.lproj`);
-		this.createDirectoryIfNeeded(languageResourcesDir).writeStrings(languageResourcesDir, 'Localizable.strings', i18nEntries).writeStrings(languageResourcesDir, 'InfoPlist.strings', infoPlistStrings);
+		let multiEnvironmentName = [];
+		if (this.environmentName) {
+			const multEnvironmentRules = this.readRules();
+			if (multEnvironmentRules) {
+				multiEnvironmentName = multEnvironmentRules.environments.map(environment => environment.name);
+			}
+		} 
+		const canCreateFile = multiEnvironmentName.some(envName => languageResourcesDir.includes('.' + envName));
+		if (!canCreateFile) {
+			this.createDirectoryIfNeeded(languageResourcesDir).writeStrings(languageResourcesDir, 'Localizable.strings', i18nEntries).writeStrings(languageResourcesDir, 'InfoPlist.strings', infoPlistStrings);
+		}
+		
 		if (isDefaultLanguage) {
 			infoPlistStrings.set('CFBundleDevelopmentRegion', language);
 			this.writeInfoPlist(infoPlistStrings);
